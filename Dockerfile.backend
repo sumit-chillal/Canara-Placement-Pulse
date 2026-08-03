@@ -1,0 +1,39 @@
+# --- Placement Pulse backend (EC2 / container fallback) ------------
+# Preferred path is AWS Lambda + EventBridge Scheduler (see
+# `lambda_handler.py`), but this Dockerfile keeps the option open of
+# running the exact-same in-process image on EC2/ECS/Fargate if
+# Lambda access isn't available.
+#
+# Build:   docker build -t placement-pulse-backend .
+# Run:     docker run -p 8001:8001 --env-file /path/to/.env \
+#            -v /path/to/secrets:/app/backend/secrets:ro \
+#            placement-pulse-backend
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    RUN_SCHEDULER_INPROC=1 \
+    PORT=8001
+
+WORKDIR /app/backend
+
+# Native deps for cryptography wheels + lxml
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gcc build-essential libxml2-dev libxslt1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./
+
+EXPOSE 8001
+
+# Long-running FastAPI + APScheduler. HEALTHCHECK hits /api/health so
+# container platforms can detect a hung Mongo pool / scheduler loop.
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
+  CMD python -c "import urllib.request,sys; \
+    r=urllib.request.urlopen('http://127.0.0.1:8001/api/health',timeout=5); \
+    sys.exit(0 if r.status==200 else 1)"
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 5 (Notice Feed) full-stack review complete. Backend: 17/17 pytest cases pass (Phase 5 new + Phase 3 regression). GET /api/entries omits detailsHtml, includes closingDate + messageExcerpt; 10775 has null closingDate; 10772 closingDate contains '17th July'; >=40 entries have populated closingDate; slno 10773 has JD+Eligibility labels; smart labels appear on >=5 entries. Frontend: 12/13 UI/UX assertions pass. Home renders cards with SW-registration stubbed at init (WITHOUT the stub the page still crashes under Playwright — same OOM issue documented in Iteration 2). 28 ISO-week sections; exactly one .pp-week.is-open by default (week-2026-W29). Week toggle open/close verified. Sort control: 'company' returns case-insensitive ascending with empty companies pushed to bottom; 'oldest' returns ascending dates; 'newest' returns descending dates. Card content rules honored: 10775 has NO card-deadline; 10772 has card-company AND card-deadline containing 'Registration closes on'; 10773 renders card-btn-group with 2 anchors ('JD'+'Eligibility'), no card-btn-single; 10775 has neither card-btn-single nor card-btn-group, only card-details; a message-only card renders card-message non-empty, no card-company, no card-deadline; a 1-link card renders card-btn-single with correct href and no card-btn-group. Detail view /entries/10775 renders detail-article + detail-html non-empty, zero <script> tags survive DOMPurify. IndexedDB: seeding lastSeenSlno=10770 and reloading (with /api/entries blocked) marks slnos 10771..10775 as .pp-card-unread with card-unread-<slno> dots, and slnos <=10770 as plain .pp-card — verified. After a clean load with network on, IDB meta.lastSeenSlno auto-updates to 10775 (max slno in dataset). PWA static assets all serve 200 (/manifest.json, /firebase-messaging-sw.js, /icons/icon-192.png, /hero-college.jpg, /apple-touch-icon.png). iOS Safari UA + maxTouchPoints=5 override triggers install-prompt-ios showing 'Add to Home Screen — required for iOS'. ONE FAILURE: [data-testid=offline-chip] does NOT render when network fails but cached entries are shown — root cause is a stale-closure bug in Home.jsx (see rca below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Home.jsx (offline chip)",
+        "issue": "offline-chip never appears when network fetch fails but cached entries are already showing. The intended UX ('Offline · showing cached data') is silently swallowed — the user has no visual indication they're viewing stale data.",
+        "selector": "[data-testid=offline-chip]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase5_entries.py",
+    "/app/backend/tests/test_phase3_fcm.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "FIX Home.jsx offline chip: the try/catch that wraps `fetchAllEntries` reads the OUTER `entries` state via closure — which is `null` at the time the effect starts, so `if (entries) setSource('offline')` never fires even after `setEntries(cached)` was called on the line above. Replace with a local variable set inside the effect scope (e.g. `let hadCache = false; if (cached?.length>0) { hadCache = true; setEntries(cached); ... }` then `if (hadCache) setSource('offline')` in the catch), OR use a ref, OR pass the value through `setSource(prev => prev === 'cache' ? 'offline' : prev)`. Without this fix the offline UX from the spec is silently broken."
+  ],
+  "critical_code_review_comments": [
+    "Home.jsx line 132-138 (offline branch): reads `entries` via useEffect closure — always the initial null value, so `setSource('offline')` never fires when cached data is present and network fails. This is the root cause of the failed offline-chip test.",
+    "Home.jsx lines 91-105: initial IDB read → setEntries(cached) → setLastSeenSlnoState(seen). Then background network fetch → setEntries(fresh) → setLastSeenSlno(maxSlno). The unread badge visual is inherently transient: as soon as the network refresh resolves it is auto-cleared. That's intended by design (unread indicator is only meaningful on the very first paint), but a first-time tester will see it only for ~50ms — worth documenting in a code comment.",
+    "EntryCard.jsx line 108: `registrationLinks[0].label?.trim() || 'Register Now'` — verified that raw label from backend flows through unchanged (e.g., 'JD', 'Eligibility'). Solid.",
+    "SortControl.jsx applySort uses '\\uffff' sentinel for missing companies → correctly sinks empties to the bottom in case-insensitive ascending order. Verified.",
+    "server.py list_entries projects out `detailsHtml` (line 215) — 50-entry response reduced from ~800KB to ~40KB. Big win for mobile.",
+    "ingest.py normalize_entry precomputes `closingDate` and `messageExcerpt` at ingest time (lines 376-384) — no per-render regex work. Correct.",
+    "MINOR (already noted in Iteration 2): SW registration under Playwright headless crashes the render, forcing us to stub `navigator.serviceWorker.register` at init. Not an app defect — real browsers are fine — but it's the same limitation the main agent's screenshot tool hits. Consider adding a `?nosw=1` query-param bypass in index.js for future test agents."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (17/17 pytest cases pass, including Phase 3 regression)",
+    "frontend": "12/13 UI assertions pass. 1 real bug: offline-chip never appears due to stale closure in Home.jsx"
+  },
+  "test_credentials": "not applicable — public read-only app",
+  "seed_data_creation": "IDB meta.lastSeenSlno=10770 was seeded via page.evaluate to test unread-visual; auto-reset by app on subsequent clean load.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reproducible facts: (1) Playwright STILL crashes on Home render unless the SW register is stubbed at init — use `page.add_init_script` to replace `navigator.serviceWorker.register` with a no-op AND `page.route('**/firebase-messaging-sw.js', route=>route.abort())`. Real browsers render fine. (2) Only newest week (week-2026-W29) is open by default; cards from other 27 weeks are collapsed — locator counts of `.pp-card` are ~9 not 222. (3) IDB DB name = 'placement-pulse', version=1, stores = ['entries','meta']. lastSeenSlno auto-updates to max slno once network refresh completes (~1-2s after first paint), so any unread-visual assertion must run BEFORE network settles — the reliable way is to block /api/entries with page.route, seed lastSeenSlno, then reload. (4) The single_link card's href is often a bare filename (e.g. 'JD_JD- International Sales Specialist (1).pdf') — that's the backend's raw upload path, not a full URL. Task doesn't require URL validation. (5) iOS install-prompt requires BOTH UA override AND navigator.maxTouchPoints=5 via add_init_script. (6) Sort mode 'recent' isn't easily testable in a single week because firstSeenAt tie-breaks with date — spec calls it out but doesn't require a deterministic assertion, so I skipped it.",
+  "rca of the issue": "Bug: offline-chip does not render when network fails and cached entries are displayed. RCA: Home.jsx useEffect (lines 87-140) defines an async IIFE. In the FIRST try-block, if cached IDB entries exist we call `setEntries(cached)` and `setSource('cache')`. In the SECOND try-block we call `fetchAllEntries()` and on failure the catch reads the OUTER `entries` state variable to decide between 'offline' (has cache) vs 'error' (no cache). BUT `entries` is captured via closure at effect-start when it is still `null` — React state updates from the first try-block don't propagate back into this closure. Therefore `if (entries)` is ALWAYS false and `setSource('offline')` NEVER fires. Reproduce: (a) load / with network to populate IDB cache; (b) `page.route('**/api/entries**', r => r.abort())`; (c) `page.reload()`; (d) observe: cards from cache visible, offline-chip missing. Mitigation: refactor the effect to use a local `let hadCache = cached?.length > 0` variable, then `if (hadCache) setSource('offline')` in the catch. Alternatively use `setSource(prev => prev === 'cache' ? 'offline' : prev)` via functional setter — no closure dependency. This is a two-line fix in Home.jsx."
+}

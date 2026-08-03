@@ -1,0 +1,24 @@
+{
+  "summary": "Phase 5 REGRESSION RETEST — all pass. Offline-chip fix confirmed: after page.route abort of /api/entries** on a warm-cache reload, [data-testid=offline-chip] appears within ~0.5s with text 'Offline · showing cached data · last synced 18 Jul, 08:24 pm' and 9 cached cards remain visible. Home.jsx now uses a local `let hadCache = false` inside the useEffect scope (line 89, set to true at line 100, read in catch at line 139) — no more stale-closure trap. Backend: 17/17 pytest cases still pass (test_phase3_fcm.py + test_phase5_entries.py). All lightweight regression checks pass: 28 .pp-week sections with exactly one .pp-week.is-open on default load; sort 'company' returns strict case-insensitive ascending (empties sink to bottom, verified via applySort output); sort 'oldest' returns strictly ascending dates; slno=10775 has 0 card-deadline-10775 elements; slno=10773 has card-btn-group-10773 with exactly 2 anchors ('JD' + 'Eligibility'); /entries/10775 renders detail-html (202 chars) with zero <script> tags surviving DOMPurify; IDB meta.lastSeenSlno auto-updates to 10775 after a clean load with network on (verified using out-of-line-key semantics — g.result returns the raw scalar 10775, not a wrapped object), IDB entries store contains 222 cached entries. Baseline offline-chip is 0 (not visible) on healthy load. No new regressions introduced by the fix.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase3_fcm.py",
+    "/app/backend/tests/test_phase5_entries.py",
+    "/app/test_reports/pytest/iteration4_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Home.jsx: fix is minimal, correct, and localized — hadCache is a `let` in the useEffect scope, not React state, so closure capture is a non-issue by construction. The comment at lines 136-138 explaining the pitfall is helpful future documentation.",
+    "index.js: the ?nosw=1 opt-out is guarded via URLSearchParams.has('nosw') — no false positives from unrelated query params. Production behavior (registration deferred via requestIdleCallback/load) is unaffected.",
+    "No new file-size, DRY, or async issues introduced by this fix."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (7/7 regression assertions incl. offline-chip)"},
+  "test_credentials": "not applicable — public read-only app",
+  "seed_data_creation": "IDB entries + meta.lastSeenSlno populated organically by first clean load; no manual seeding required for this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The offline-chip regression test is now stable and reproducible with the ?nosw=1 workaround (no SW register → no OOM under headless Chromium). Recipe: (1) goto /?nosw=1, wait for .pp-card, sleep ~3.5s for cache flush; (2) reload once more to warm; (3) page.route('**/api/entries**', abort); (4) page.reload; (5) wait for cached .pp-card; (6) assert offline-chip visible within ~10s. The card cache flush time (~3.5s) is important — cacheEntries runs after the full paginated fetch completes. When reading IDB meta store, note it uses out-of-line keys — `store.get('lastSeenSlno').onsuccess → g.result` returns the raw scalar (10775), NOT a wrapper object with .value. Baseline entry count in IDB: 222.",
+  "rca of the issue": "N/A — issue from iteration_3 fixed and verified. Fix in Home.jsx lines 87-145: replaced the stale-closure read of React `entries` state with a local `let hadCache = false` declared inside the useEffect body, flipped to true when cached entries load (line 100), and read from within the catch branch (line 139) to decide between setSource('offline') and setError. The fix is minimal, correct, and adds an inline comment explaining the pitfall."
+}

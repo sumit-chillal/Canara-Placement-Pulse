@@ -1,0 +1,1794 @@
+/* Placement Pulse — main styles.
+   Editorial + IBM Plex + Fraunces, per /app/memory/Design.md. */
+
+:root {
+  --pp-paper: #fbfaf7;
+  --pp-ink: #14140f;
+  --pp-ink-2: #3a3a33;
+  --pp-muted: #6b6a5a;
+  --pp-line: #d9d5c6;
+  --pp-line-soft: #ebe7d9;
+  --pp-moss: #7a9a3a;
+  --pp-amber: #c68a2f;
+  --pp-card: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+html body,
+button,
+input,
+select,
+textarea {
+  font-family:
+    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  /* Safety net: no single element (a long dropdown option, an unbroken
+     URL, etc.) should ever be able to widen the whole page and push
+     content off-screen to the right. */
+  overflow-x: hidden;
+  background: var(--pp-paper);
+  color: var(--pp-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--pp-amber);
+  color: var(--pp-paper);
+}
+
+/* --- Shell -------------------------------------------------------- */
+
+.pp-shell {
+  min-height: 100vh;
+  padding: 3.5rem clamp(1.25rem, 6vw, 5rem) 6rem;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #eef1ea 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, #f7ede1 0%, transparent 55%),
+    var(--pp-paper);
+}
+
+.pp-container {
+  /* Fluid width: grows continuously with the viewport (via 90vw) between
+     a 720px floor and a 1200px ceiling, instead of jumping between fixed
+     breakpoints. On phones the floor never actually applies (a block
+     element can't exceed its parent's available width), so mobile is
+     unaffected — this only changes tablet/desktop, where it now uses
+     the screen instead of sitting in a narrow fixed column. */
+  max-width: clamp(720px, 90vw, 1200px);
+  width: 100%;
+  margin: 0 auto;
+}
+
+.pp-container-detail {
+  /* Detail/reading page stays narrower than the dashboard width above —
+     long-form text is more readable in a tighter column even on big
+     screens — but still scales fluidly rather than jumping at a
+     breakpoint. */
+  max-width: clamp(760px, 85vw, 980px);
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Topbar + hero ------------------------------------------------ */
+
+.pp-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.pp-logo {
+  height: 44px;
+  width: auto;
+  max-width: 260px;
+  display: block;
+  object-fit: contain;
+}
+
+.pp-brand {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  color: var(--pp-ink);
+}
+
+.pp-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pp-hero {
+  margin: 0 0 2.5rem;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--pp-line);
+  background: #eae6d7;
+  aspect-ratio: 16 / 9;
+  position: relative;
+  isolation: isolate;
+}
+
+.pp-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pp-hero-caption {
+  position: absolute;
+  left: 1rem;
+  bottom: 0.9rem;
+  color: #fff;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 640px) {
+  .pp-hero {
+    margin-bottom: 1.25rem;
+  }
+  .pp-stats-strip,
+  .pp-stats-strip-loading {
+    margin-top: 0;
+  }
+}
+
+/* --- Install prompt ---------------------------------------------- */
+
+.pp-install {
+  margin: 2rem 0 2.5rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid var(--pp-line);
+  background: linear-gradient(180deg, #ffffff, #f7f4ea);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (min-width: 620px) {
+  .pp-install {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pp-install-copy strong {
+  display: block;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+  color: var(--pp-ink);
+}
+
+.pp-install-copy span {
+  display: block;
+  color: var(--pp-ink-2);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  max-width: 46ch;
+}
+
+.pp-install-steps {
+  margin: 0.75rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--pp-ink-2);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.pp-install-steps li {
+  margin-bottom: 0.3rem;
+}
+
+.pp-install-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pp-btn-solid {
+  border: 1px solid var(--pp-ink);
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+}
+
+.pp-btn-ghost {
+  border: 1px solid var(--pp-line);
+  background: transparent;
+  color: var(--pp-ink);
+}
+
+.pp-btn-ghost:hover:not(:disabled) {
+  background: #efece2;
+  transform: none;
+}
+
+.pp-chip-installed {
+  border-color: var(--pp-line);
+  color: var(--pp-ink-2);
+  background: #f2efe6;
+}
+
+.pp-chip-muted {
+  border-color: var(--pp-line);
+  color: var(--pp-muted);
+  background: #ffffffcc;
+}
+
+.pp-chip-sub {
+  color: var(--pp-muted);
+  font-size: 0.78em;
+}
+
+/* --- Feed header + sort control --------------------------------- */
+
+.pp-feed {
+  margin-top: 3rem;
+}
+
+.pp-feed-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.pp-feed-header .pp-section-heading {
+  margin: 0;
+}
+
+.pp-feed-controls {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pp-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffffcc;
+  border: 1px solid var(--pp-line);
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem 0.25rem 0.9rem;
+}
+
+.pp-sort-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pp-muted);
+}
+
+.pp-sort-select {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--pp-ink);
+  padding: 0.35rem 0.25rem;
+  outline: none;
+  cursor: pointer;
+}
+
+/* --- Weekly sections -------------------------------------------- */
+
+.pp-week {
+  border-top: 1px solid var(--pp-line-soft);
+}
+
+.pp-week:last-child {
+  border-bottom: 1px solid var(--pp-line-soft);
+}
+
+.pp-week-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 0.25rem;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: var(--pp-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pp-week-header:hover {
+  color: #2a2a24;
+}
+
+.pp-week-label {
+  flex: 1;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.pp-week-count {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--pp-muted);
+}
+
+.pp-week-caret {
+  color: var(--pp-muted);
+  transition: transform 0.18s ease;
+}
+
+.pp-week-caret.is-open {
+  transform: rotate(-180deg);
+}
+
+.pp-week-body {
+  /* auto-fill lets the browser fit as many ~260px-minimum columns as
+     the available width allows, growing/shrinking continuously as the
+     window resizes instead of snapping between 1/2/3 columns at fixed
+     breakpoints — genuinely fluid rather than stepped. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  padding: 0.25rem 0 1.5rem;
+}
+
+/* --- Cards ------------------------------------------------------- */
+
+.pp-card {
+  position: relative;
+  background: var(--pp-card);
+  border: 1px solid var(--pp-line);
+  border-radius: 16px;
+  padding: 1.15rem 1.2rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.pp-card:hover {
+  transform: translateY(-4px) scale(1.035);
+  box-shadow: 0 20px 45px -20px rgba(20, 20, 15, 0.45);
+  border-color: #c9c4b1;
+  /* Lift above neighboring cards so the enlarged card isn't clipped
+     under the next row when it grows past its own grid cell. */
+  z-index: 5;
+}
+
+.pp-card-unread {
+  border-color: var(--pp-amber);
+  background: linear-gradient(180deg, #fefaef, #ffffff 55%);
+}
+
+.pp-card-unread::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--pp-amber);
+  border-radius: 16px 0 0 16px;
+}
+
+.pp-card-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--pp-muted);
+  letter-spacing: 0.02em;
+  padding-right: 2.1rem;
+}
+
+.pp-card-slno {
+  font-size: 0.75rem;
+}
+
+.pp-card-newdot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pp-amber);
+  margin-left: 0.4rem;
+  box-shadow: 0 0 0 3px #c68a2f22;
+}
+
+.pp-card-company {
+  margin: 0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pp-ink-2);
+}
+
+.pp-card-title {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.08rem;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  margin: 0.15rem 0 0;
+  color: var(--pp-ink);
+}
+
+.pp-card-deadline {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: #7a5316;
+  background: #fdf5e6;
+  border: 1px solid #ecd8ab;
+  padding: 0.4rem 0.65rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  align-self: flex-start;
+}
+
+.pp-card-deadline-icon {
+  font-size: 0.95rem;
+}
+
+.pp-card-message {
+  margin: 0.1rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--pp-ink-2);
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+.pp-card-actions {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.pp-btn-sm {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  border-radius: 999px;
+}
+
+.pp-btn-link {
+  border: 0;
+  background: transparent;
+  color: var(--pp-ink);
+  padding: 0.45rem 0.15rem;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.pp-btn-link:hover {
+  color: #2a2a24;
+  transform: none;
+  background: transparent;
+}
+
+.pp-btn-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* --- Better detail-page HTML rendering -------------------------- */
+
+.pp-html h1,
+.pp-html h2,
+.pp-html h3 {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--pp-ink);
+  margin: 1.75rem 0 0.75rem;
+}
+
+.pp-html h1 { font-size: 1.5rem; }
+.pp-html h2 { font-size: 1.25rem; }
+.pp-html h3 { font-size: 1.1rem; }
+
+.pp-html ul,
+.pp-html ol {
+  padding-left: 1.35rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.pp-html li {
+  margin-bottom: 0.3rem;
+}
+
+.pp-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.pp-detail .pp-chip {
+  margin-bottom: 1rem;
+}
+
+/* --- Type --------------------------------------------------------- */
+
+.pp-eyebrow {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pp-muted);
+  margin: 0 0 1.5rem;
+}
+
+.pp-title {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.25rem;
+  color: var(--pp-ink);
+}
+
+.pp-title-detail {
+  font-size: clamp(1.65rem, 3.6vw, 2.4rem);
+  line-height: 1.15;
+}
+
+.pp-lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--pp-ink-2);
+  max-width: 48ch;
+  margin: 0 0 2rem;
+}
+
+.pp-section-heading {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+  color: var(--pp-ink);
+  margin: 2.5rem 0 1rem;
+}
+
+.pp-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.85em;
+  color: var(--pp-muted);
+}
+
+.pp-meta {
+  font-size: 0.9rem;
+  color: var(--pp-muted);
+  margin: 0 0 2rem;
+}
+
+/* --- Subscribe --------------------------------------------------- */
+
+.pp-header {
+  margin-bottom: 3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pp-subscribe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.pp-btn {
+  border: 1px solid var(--pp-ink);
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.pp-btn:hover:not(:disabled) {
+  background: #2a2a24;
+  transform: translateY(-1px);
+}
+
+.pp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: #ffffffcc;
+  border: 1px solid var(--pp-line);
+  font-size: 0.88rem;
+  color: var(--pp-ink-2);
+}
+
+.pp-chip-ok {
+  border-color: var(--pp-moss);
+  color: #465e21;
+}
+
+.pp-chip-warn {
+  border-color: var(--pp-amber);
+  color: #7a5316;
+  background: #fdf5e6;
+}
+
+.pp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pp-moss);
+  box-shadow: 0 0 0 4px #7a9a3a22;
+}
+
+/* --- Toast (foreground push) ------------------------------------ */
+
+.pp-toast {
+  border: 1px solid var(--pp-amber);
+  background: #fdf5e6;
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  margin: 0 0 2rem;
+  font-size: 0.95rem;
+  color: var(--pp-ink);
+}
+
+.pp-toast strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.pp-link {
+  color: var(--pp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --- List -------------------------------------------------------- */
+
+.pp-empty {
+  color: var(--pp-muted);
+  font-size: 0.95rem;
+  padding: 1.25rem 0;
+}
+
+.pp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pp-list-item {
+  border-top: 1px solid var(--pp-line-soft);
+}
+
+.pp-list-item:last-child {
+  border-bottom: 1px solid var(--pp-line-soft);
+}
+
+.pp-list-link {
+  display: block;
+  padding: 1.15rem 0;
+  color: var(--pp-ink);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.pp-list-link:hover {
+  color: #2a2a24;
+}
+
+.pp-list-meta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--pp-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.pp-list-title {
+  display: block;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.pp-list-company {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--pp-muted);
+  border: 1px solid var(--pp-line);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+/* --- Detail page ------------------------------------------------- */
+
+.pp-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--pp-ink-2);
+  margin-bottom: 2.25rem;
+  text-decoration: none;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.pp-back svg {
+  flex-shrink: 0;
+}
+
+.pp-back:hover {
+  color: var(--pp-ink);
+  transform: translateX(-2px);
+}
+
+.pp-html {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--pp-ink-2);
+}
+
+.pp-html p {
+  margin: 0 0 1rem;
+}
+
+.pp-html a {
+  color: var(--pp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pp-html table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  width: 100%;
+  font-size: 0.92rem;
+}
+
+.pp-html th,
+.pp-html td {
+  border: 1px solid var(--pp-line);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.pp-html th {
+  background: #f2efe6;
+  font-weight: 500;
+}
+
+.pp-links-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pp-links-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--pp-line-soft);
+}
+
+.pp-links-list li:last-child {
+  border-bottom: 0;
+}
+
+.pp-links-list a {
+  color: var(--pp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-word;
+}
+
+/* ============================================================
+   Phase 6 · Stats strip, filter bar, current-week chip, badges
+   ============================================================ */
+
+.pp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pp-stats-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2.25rem;
+  align-items: baseline;
+  margin: -0.75rem 0 1.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pp-line-soft);
+  border-radius: 14px;
+  background: #ffffffcc;
+}
+
+.pp-stats-strip.is-loading {
+  min-height: 3.25rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+.pp-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.pp-stat-num {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.55rem;
+  color: var(--pp-ink);
+  letter-spacing: -0.01em;
+}
+
+.pp-stat-lbl {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pp-muted);
+}
+
+.pp-stat-poll .pp-stat-poll-val {
+  font-size: 0.85rem;
+  color: var(--pp-ink-2);
+}
+
+/* -- Filter bar ---------------------------------------------------- */
+
+.pp-filterbar {
+  margin: 0 0 2rem;
+  padding: 1rem 1.05rem 0.85rem;
+  border-radius: 16px;
+  border: 1px solid var(--pp-line);
+  background: linear-gradient(180deg, #ffffff, #f9f6ec);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pp-filter-row {
+  /* auto-fit: search + 3 dropdowns each claim a minimum of 200px and
+     share whatever space is left, wrapping onto as many rows as needed
+     — one control per row on a phone, all four side by side once
+     there's room, with no hard breakpoint in between. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.pp-filter-row > * {
+  min-width: 0;
+}
+
+.pp-filter-input,
+.pp-filter-select {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pp-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.35rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6a5a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 14px;
+}
+
+.pp-filter-input:focus,
+.pp-filter-select:focus {
+  border-color: var(--pp-ink);
+  box-shadow: 0 0 0 3px #14140f18;
+}
+
+.pp-filter-input::placeholder {
+  color: #a09e8b;
+}
+
+.pp-filter-branches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.pp-filter-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pp-week-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.pp-week-pill {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.32rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink-2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pp-week-pill:hover {
+  border-color: #b7b19d;
+  color: var(--pp-ink);
+}
+
+.pp-week-pill.is-active {
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  border-color: var(--pp-ink);
+}
+
+.pp-week-pill-current {
+  border-color: #7a9a3a;
+  color: #46621d;
+}
+
+.pp-week-pill-current.is-active {
+  background: #7a9a3a;
+  color: #ffffff;
+  border-color: #7a9a3a;
+}
+
+.pp-week-badge-current {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  background: #eaf3d7;
+  color: #46621d;
+  border: 1px solid #b5c98b;
+  vertical-align: middle;
+}
+
+.pp-week.is-current .pp-week-header {
+  border-left: 3px solid #7a9a3a;
+}
+
+/* -- Month sections + week-of-month pager (replaces flat week list) - */
+
+.pp-month {
+  border-top: 1px solid var(--pp-line-soft);
+  padding: 1.75rem 0 0.5rem;
+}
+
+.pp-month:last-child {
+  border-bottom: 1px solid var(--pp-line-soft);
+  padding-bottom: 2rem;
+}
+
+.pp-month.is-current .pp-month-header {
+  border-left: 3px solid #7a9a3a;
+  padding-left: 0.6rem;
+}
+
+.pp-month-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pp-month-header:hover .pp-month-label {
+  color: #2a2a24;
+}
+
+.pp-month-label {
+  flex: 1;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--pp-ink);
+  transition: color 0.15s ease;
+}
+
+.pp-month-count {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--pp-muted);
+  white-space: nowrap;
+}
+
+.pp-week-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin: 0 0 1.1rem;
+  padding: 0.5rem 0;
+}
+
+.pp-week-pager-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.pp-week-pager-btn:hover:not(:disabled) {
+  border-color: #b7b19d;
+  background: #f2efe6;
+}
+
+.pp-week-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pp-week-pager-label {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1.02rem;
+  color: var(--pp-ink);
+  text-align: center;
+  min-width: 180px;
+}
+
+.pp-week-pager-pos {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--pp-muted);
+  margin-left: 0.3rem;
+}
+
+.pp-card-excerpt {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--pp-ink-2);
+  text-align: justify;
+  text-justify: inter-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pp-branch-chip {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink-2);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.pp-branch-chip:hover {
+  border-color: #b7b19d;
+  color: var(--pp-ink);
+}
+
+.pp-branch-chip.is-active {
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  border-color: var(--pp-ink);
+}
+
+.pp-filter-reset {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pp-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+}
+
+.pp-filter-reset:hover {
+  color: var(--pp-ink);
+}
+
+/* -- Current-week chip (inline, next to the title) ---------------- */
+
+.pp-week-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(20, 20, 15, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--pp-paper);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  box-shadow: 0 10px 26px -16px rgba(20, 20, 15, 0.4);
+}
+
+.pp-week-chip:hover {
+  transform: translateY(-1px);
+}
+
+.pp-week-chip.has-unread {
+  background: rgba(122, 154, 58, 0.55);
+  border-color: rgba(122, 154, 58, 0.65);
+}
+
+.pp-week-chip.has-unread .pp-week-chip-dot {
+  background: #ffffff;
+  box-shadow: 0 0 0 4px #ffffff55;
+}
+
+.pp-week-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--pp-moss);
+  box-shadow: 0 0 0 4px #7a9a3a55;
+}
+
+.pp-week-chip strong {
+  font-weight: 500;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* -- Card badges (CTC / branch / type) --------------------------- */
+
+.pp-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.pp-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink-2);
+  line-height: 1.4;
+}
+
+.pp-badge-ctc {
+  border-color: #b5c98b;
+  background: #eaf3d7;
+  color: #46621d;
+  font-weight: 500;
+}
+
+.pp-badge-branch {
+  background: #f2efe6;
+  color: var(--pp-ink-2);
+  border-color: #d9d5c6;
+}
+
+.pp-badge-branch.pp-badge-all {
+  background: #ede6d3;
+  color: #6b5417;
+  border-color: #d4c294;
+}
+
+.pp-badge-branch.pp-badge-more {
+  background: transparent;
+  color: var(--pp-muted);
+  border-style: dashed;
+}
+
+.pp-badge-type {
+  margin-left: auto;
+  font-size: 0.78rem;
+  padding: 0.28rem 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-muted);
+}
+
+.pp-badge-type-drive      { border-color: #b7c9ac; color: #3f5c30; background: #eef4e6; }
+.pp-badge-type-internship { border-color: #b1c1d8; color: #2c4b73; background: #e6ecf6; }
+.pp-badge-type-results    { border-color: #d4b48f; color: #7a5316; background: #f7ecd8; }
+.pp-badge-type-ppt        { border-color: #c8b5d0; color: #56316b; background: #eee2f2; }
+.pp-badge-type-notice     { color: var(--pp-muted); }
+
+/* -- Filter-empty CTA button ------------------------------------- */
+
+.pp-empty .pp-btn-link {
+  color: var(--pp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0 0.15rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: inherit;
+}
+
+/* ============================================================
+   Notification bell
+   ============================================================ */
+
+.pp-bell-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.pp-bell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink-2);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.pp-bell:hover:not(:disabled) {
+  border-color: #b7b19d;
+  color: var(--pp-ink);
+  transform: translateY(-1px);
+}
+
+.pp-bell.is-on {
+  background: #eaf3d7;
+  border-color: #b5c98b;
+  color: #46621d;
+}
+
+.pp-bell.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
+
+.pp-bell:disabled {
+  cursor: not-allowed;
+}
+
+.pp-bell-popover {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 50;
+  width: 260px;
+  background: #ffffff;
+  border: 1px solid var(--pp-line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 16px 40px -18px rgba(20, 20, 15, 0.4);
+  font-size: 0.85rem;
+  color: var(--pp-ink-2);
+  line-height: 1.5;
+}
+
+.pp-bell-popover p {
+  margin: 0 0 0.6rem;
+}
+
+.pp-bell-popover-error {
+  border-color: #e2a5a5;
+}
+
+.pp-bell-confirm-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 60;
+  max-width: 320px;
+  background: #ffffff;
+  border: 1px solid var(--pp-moss);
+  border-radius: 14px;
+  padding: 0.95rem 1.1rem;
+  box-shadow: 0 16px 40px -18px rgba(20, 20, 15, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  animation: pp-toast-in 0.25s ease;
+}
+
+.pp-bell-confirm-toast strong {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
+  color: #46621d;
+}
+
+.pp-bell-confirm-toast span {
+  font-size: 0.88rem;
+  color: var(--pp-ink-2);
+  line-height: 1.45;
+}
+
+@keyframes pp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   Skeleton / shimmer loading states
+   ============================================================ */
+
+@keyframes pp-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.pp-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    #ece8db 25%,
+    #f6f3e9 37%,
+    #ece8db 63%
+  );
+  background-size: 800px 100%;
+  animation: pp-shimmer 1.4s ease-in-out infinite;
+}
+
+.pp-skeleton-card {
+  cursor: default;
+}
+
+.pp-skeleton-card:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--pp-line);
+}
+
+.pp-skeleton-meta {
+  height: 0.75rem;
+  width: 40%;
+  margin-bottom: 0.4rem;
+}
+
+.pp-skeleton-title {
+  height: 1.1rem;
+  width: 90%;
+  margin-top: 0.3rem;
+}
+
+.pp-skeleton-title-short {
+  width: 60%;
+}
+
+.pp-skeleton-badges {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.pp-skeleton-badge {
+  height: 1.2rem;
+  width: 3.5rem;
+  border-radius: 999px;
+}
+
+.pp-skeleton-line {
+  height: 0.85rem;
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.pp-skeleton-line-short {
+  width: 75%;
+}
+
+.pp-skeleton-btn {
+  height: 2.1rem;
+  width: 7rem;
+  border-radius: 999px;
+  margin-top: 0.9rem;
+}
+
+.pp-stats-strip-loading {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.pp-skeleton-stat {
+  height: 1.55rem;
+  width: 5.5rem;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   Branch multi-select dropdown (replaces the always-visible chip row)
+   ============================================================ */
+
+.pp-branch-dropdown {
+  position: relative;
+}
+
+.pp-branch-dropdown-btn {
+  text-align: left;
+}
+
+.pp-branch-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 30;
+  width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--pp-line);
+  border-radius: 12px;
+  padding: 0.6rem;
+  box-shadow: 0 16px 40px -18px rgba(20, 20, 15, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pp-branch-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--pp-ink);
+  cursor: pointer;
+}
+
+.pp-branch-option:hover {
+  background: #f2efe6;
+}
+
+.pp-branch-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--pp-ink);
+  cursor: pointer;
+}
+
+.pp-branch-clear {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-top: 1px solid var(--pp-line-soft);
+  background: transparent;
+  color: var(--pp-muted);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.pp-branch-clear:hover {
+  color: var(--pp-ink);
+}
+
+/* ============================================================
+   Scroll-to-top button
+   ============================================================ */
+
+.pp-scroll-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 45;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 30px -14px rgba(20, 20, 15, 0.55);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  animation: pp-toast-in 0.2s ease;
+}
+
+.pp-scroll-top:hover {
+  transform: translateY(-2px);
+  background: #2a2a24;
+}
+
+/* Sits above the bell's confirmation toast, which also anchors
+   bottom-right, so the two never overlap if both are visible at once. */
+.pp-bell-confirm-toast {
+  bottom: 5.25rem;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.pp-footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--pp-line-soft);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--pp-muted);
+}
+
+.pp-footer-link {
+  color: var(--pp-muted);
+  text-decoration: none;
+}
+
+.pp-footer-link:hover {
+  color: var(--pp-ink);
+  text-decoration: underline;
+}
+
+.pp-footer-credit {
+  width: 100%;
+  margin-left: 0;
+  margin-top: 0.75rem;
+  text-align: center;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--pp-ink-2);
+}
+
+/* ============================================================
+   Error boundary fallback
+   ============================================================ */
+
+.pp-error-boundary {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.pp-error-boundary .pp-lede {
+  margin: 0 auto 1.75rem;
+}
+
+.pp-error-boundary .pp-btn {
+  display: inline-flex;
+}
+
+/* ============================================================
+   Notification bell — branch picker
+   ============================================================ */
+
+.pp-branch-picker {
+  width: 280px;
+}
+
+.pp-branch-picker p {
+  font-size: 0.85rem;
+  color: var(--pp-ink-2);
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
+}
+
+.pp-branch-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.1rem;
+  margin-bottom: 0.85rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pp-branch-picker .pp-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.pp-bell-manage-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* ============================================================
+   Bookmarking
+   ============================================================ */
+
+.pp-card-bookmark {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffffcc;
+  color: var(--pp-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.pp-card-bookmark:hover {
+  color: var(--pp-ink);
+  border-color: #b7b19d;
+}
+
+.pp-card-bookmark.is-bookmarked {
+  color: var(--pp-amber);
+  border-color: #ecd8ab;
+  background: #fdf5e6;
+}
+
+.pp-bookmarks-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--pp-line);
+  background: #ffffff;
+  color: var(--pp-ink-2);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.pp-bookmarks-toggle:hover {
+  border-color: #b7b19d;
+  color: var(--pp-ink);
+}
+
+.pp-bookmarks-toggle.is-active {
+  background: #fdf5e6;
+  border-color: #ecd8ab;
+  color: #7a5316;
+}

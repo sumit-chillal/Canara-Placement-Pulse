@@ -1,0 +1,52 @@
+{
+  "summary": "Phase 3 (FCM subscribe/publish + deep-link) tested. All 8 backend pytest cases pass against the live deploy. Frontend UI, entries list, detail-page sanitization, back navigation, and /entries/:slno deep-link (notification-click simulation) all pass. The subscribe-btn end-to-end flow could NOT be completed inside the Playwright headless Chromium environment because that browser context is incognito-like and Chrome disables the Push API in incognito (crbug.com/401439). The app itself handles this correctly — it surfaces a graceful 'Registration failed - permission denied' error via data-testid='subscribe-error' with no unhandled exceptions. During setup we had to restart the frontend supervisor once because the CRA dev-server had been started before .env was populated with the Firebase config (bundle contained the literal string 'REACT_APP_FIREBASE_PROJECT_ID' instead of 'cec-placements23'). After sudo supervisorctl restart frontend the config was baked in correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "FCM subscribe (subscribe-btn -> getToken -> POST /api/subscribe)",
+        "issue": "Cannot be verified end-to-end in Playwright headless Chromium — Push API is disabled in incognito-like contexts (crbug.com/401439). App-side handling verified graceful: subscribe-error chip shows 'Registration failed - permission denied' and no unhandled exception. Backend /api/subscribe was NOT hit because getToken() throws before the POST. Needs verification from a real desktop/mobile browser.",
+        "affected_selectors": ["[data-testid='subscribe-btn']", "[data-testid='subscribed-chip']", "[data-testid='subscribe-error']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase3_fcm.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "USER ACTION: verify the 'Enable notifications' button flow from a real Chrome/Firefox tab on desktop or mobile (not incognito, not Playwright headless). Expected: click -> browser permission prompt -> subscribed-chip appears within a few seconds -> devtools Network shows POST /api/subscribe returning 200 with subscribed:true.",
+    "OPS NOTE (already applied by testing agent, keep in mind for future): the CRA dev-server bakes REACT_APP_* env vars at start time. If backend/frontend .env is edited, run 'sudo supervisorctl restart frontend' or the runtime bundle will still ship undefined values (leads to 'Installations: Missing App configuration value: projectId' at runtime).",
+    "OPTIONAL: consider distinguishing 'Push API unavailable in this browsing context (e.g. incognito)' from a real user-denied permission in the error message rendered in data-testid='subscribe-error', so support/QA can tell them apart. Right now both surface as 'Registration failed - permission denied'."
+  ],
+  "critical_code_review_comments": [
+    "server.py L295: /api/subscribe correctly wraps the firebase-admin call in try/except and returns a structured 502 — no 500 leaks. Good.",
+    "server.py L300-326: /api/admin/notify/test correctly handles unknown slno with 404 and errors with 502; content structure matches Phase 3 spec.",
+    "ingest.py build_notification (L231-258) implements all three content rules exactly as spec'd. Verified live: 10775 (results, no deadline) does NOT emit 'Registration closes on'; 10772 (Codeyoung with 'Register by 17th July') DOES emit it; isMessageOnly 10769 uses title='Placement Department' with plain-text body.",
+    "firebase-messaging-sw.js correctly deep-links to /entries/<slno> via clients.matchAll + client.navigate + fallback PP_NAVIGATE postMessage bridge to SWNavigationBridge in App.js — deep-link never opens external URL.",
+    "EntryDetail.jsx uses DOMPurify with a whitelist that excludes 'script' — verified live at /entries/10775 that no <script> survives sanitization.",
+    "MINOR: Home.jsx gates the subscribe-btn behind `permission !== 'denied'`. This is UX-safe but means a genuinely blocked user cannot re-attempt without going into browser settings — expected behavior, worth documenting for the user."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py (created)",
+    "/app/backend/tests/conftest.py (created)",
+    "/app/backend/tests/test_phase3_fcm.py (created — 8 pytest cases covering all Phase 3 rules)",
+    "/app/backend/pytest.ini (updated testpaths to tests/)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 pytest)",
+    "frontend": "90% — everything except the subscribe end-to-end which is untestable in this Playwright env"
+  },
+  "test_credentials": "not applicable — app is public/read-only",
+  "seed_data_creation": "none — used the existing 222 notices; specifically exercised slno=10775 (no-deadline rule), slno=10772 (with-deadline rule), slno=10769 (isMessageOnly rule)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_phase3_fcm.py — run with `cd /app/backend && python -m pytest tests/ -v`. They hit the live preview deploy (REACT_APP_BACKEND_URL). If Home.jsx UI changes, note that data-testid='subscribe-btn' is only rendered when Notification.permission !== 'denied' AND user hasn't already subscribed. Playwright headless Chromium reports Notification.permission='denied' even after context.grant_permissions() due to incognito-like context; workaround is to add_init_script overriding Notification.permission getter to return 'granted'. Even then, FCM getToken() will fail because Push API is unavailable in incognito (crbug.com/401439). The subscribe flow must be QA'd manually in a real browser tab.",
+  "rca of the issue": "Not an app bug. The Playwright automation context runs Chromium in an incognito-like state; Chrome deliberately disables the Push API and reports Notification.permission='denied' regardless of Playwright's grant_permissions() call. FCM's getToken() calls pushManager.subscribe() internally which throws NotAllowedError('permission denied'). The frontend catches this correctly in subscribeToPlacementUpdates() (firebase.js L92-94) and shows a friendly error via data-testid='subscribe-error'. To reproduce a real subscribe, use a real desktop Chrome tab (not headless, not incognito), open the site, click 'Enable notifications', accept the browser prompt. On the backend side, /api/subscribe is confirmed working (rejects garbage tokens with structured 200/502, never a 500)."
+}
