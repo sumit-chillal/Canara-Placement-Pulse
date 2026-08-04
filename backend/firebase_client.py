@@ -27,6 +27,46 @@ def _resolve_cred_path(raw: str) -> Path:
     return p if p.is_absolute() else (_BACKEND_DIR / p)
 
 
+def _fetch_from_secrets_manager(dest: Path) -> bool:
+    """
+    Lambda-only fallback. scripts/build-lambda-zip.sh deliberately
+    strips firebase-admin*.json out of the deployment zip before it's
+    built (correctly — a secret has no business sitting in a zip
+    artifact in S3/CodeDeploy history). That means on Lambda, the path
+    FIREBASE_SERVICE_ACCOUNT_PATH points at (e.g. /tmp/firebase-admin.json)
+    won't exist yet at cold start. When FIREBASE_SECRET_NAME is set,
+    pull the JSON from AWS Secrets Manager and materialize it at
+    `dest` instead — `dest` must be under /tmp/, the only writable
+    path in a Lambda execution environment.
+
+    No-op (returns False) when FIREBASE_SECRET_NAME isn't set, so
+    local dev and the EC2/Docker fallback path — where the file is
+    just bind-mounted directly at backend/secrets/firebase-admin.json
+    — are completely unaffected by this.
+
+    boto3 is imported lazily here (not at module load) so nothing
+    outside this one Lambda-only code path needs it installed —
+    AWS's own Python 3.11 Lambda runtime ships boto3 pre-installed,
+    so it's deliberately left out of requirements.txt / the zip to
+    keep the deployment package smaller.
+    """
+    secret_name = os.environ.get("FIREBASE_SECRET_NAME", "").strip()
+    if not secret_name:
+        return False
+
+    import boto3  # noqa: PLC0415 — intentionally lazy, see docstring
+
+    client = boto3.client("secretsmanager")
+    resp = client.get_secret_value(SecretId=secret_name)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(resp["SecretString"])
+    logger.info(
+        "Firebase service-account fetched from Secrets Manager (%s) -> %s",
+        secret_name, dest,
+    )
+    return True
+
+
 def _init() -> firebase_admin.App:
     global _APP
     if _APP is not None:
@@ -36,13 +76,25 @@ def _init() -> firebase_admin.App:
         return _APP
     cred_path_raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH", "")
     cred_path = _resolve_cred_path(cred_path_raw) if cred_path_raw else None
+
+    if cred_path and not cred_path.exists():
+        # Not present on disk (expected on a fresh Lambda cold start,
+        # since the zip never contains it) — try Secrets Manager
+        # before giving up. Any failure here (bad secret name, missing
+        # IAM permission, etc.) surfaces as a normal exception from
+        # boto3, which is fine — it'll show up clearly in CloudWatch
+        # Logs rather than being swallowed.
+        _fetch_from_secrets_manager(cred_path)
+
     if not cred_path or not cred_path.exists():
         raise RuntimeError(
             f"Firebase service account file missing. "
             f"FIREBASE_SERVICE_ACCOUNT_PATH={cred_path_raw!r} "
-            f"resolved to {cred_path} which does not exist. "
-            f"Set it to an absolute path, or a path relative to backend/ "
-            f"(e.g. 'secrets/firebase-admin.json')."
+            f"resolved to {cred_path} which does not exist, and no "
+            f"FIREBASE_SECRET_NAME was set (or the Secrets Manager "
+            f"fetch failed) to materialize it there instead. Set "
+            f"FIREBASE_SERVICE_ACCOUNT_PATH to an absolute path, or a "
+            f"path relative to backend/ (e.g. 'secrets/firebase-admin.json')."
         )
     cred = credentials.Certificate(str(cred_path))
     _APP = firebase_admin.initialize_app(cred)

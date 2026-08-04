@@ -356,10 +356,23 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
         if not (u_ok or f_ok):
             continue
         raw_val = u if u_ok else f
-        # Prefer the human label from first_file* when present; else
-        # derive from the filename via heuristics.
-        candidate = f if f_ok else u
-        label = _label_for_file(candidate, f"Attachment {i}")
+        # The college portal's *_file field (first_file, second_file, ...)
+        # IS the human label an admin actually typed for this attachment
+        # on the official site — e.g. "Registered Students List" or
+        # "Campus copy of Company profile- Codeyoung (1)". Use it
+        # VERBATIM whenever it's present and isn't itself a bare
+        # filename/URL, so our card matches the official portal exactly
+        # instead of silently re-guessing a (sometimes wrong) label from
+        # keywords. "Registered Students List" contains the substring
+        # "regist", which used to false-match the "apply|register|..."
+        # heuristic and render as "Apply" — that's exactly the bug this
+        # avoids. Only fall back to keyword heuristics when there's no
+        # usable human label at all (missing, or itself URL-like).
+        if f_ok and not _is_url_like(f):
+            label = f
+        else:
+            candidate = f if f_ok else u
+            label = _label_for_file(candidate, f"Attachment {i}")
         resolved = _resolve_link(raw_val)
         if resolved:
             links.append({"label": label, **resolved})
