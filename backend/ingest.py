@@ -210,15 +210,33 @@ def _is_email_link(href: str, text: str) -> bool:
     return False
 
 
+# Bare domain/path text with NO protocol at all, e.g.
+# "test.aaptor.com/forms/public/AJxzOKE6uFsD-fwkv6UPBQ". Notices are
+# often pasted as plain text without "http(s)://", so checking only
+# for the http(s)/www prefixes (as before) let these slip through as
+# if they were real human labels.
+_BARE_URL_RE = re.compile(r"^\S+\.[a-z]{2,}(?:/\S*)?$", re.IGNORECASE)
+
+
 def _is_url_like(text: str) -> bool:
     """
     True when anchor text is empty or is itself a URL — i.e. NOT a real
     human label. Used to stop raw hrefs from ever becoming button text
     on a card (the bug behind links rendering as full URLs instead of
-    'Apply'/'Register' style buttons).
+    'Apply'/'Register' style buttons). Catches both protocol-prefixed
+    URLs (http://, https://, www.) AND bare domain/path text with no
+    protocol prefix at all.
     """
-    t = (text or "").strip().lower()
-    return not t or t.startswith(("http://", "https://", "www."))
+    t = (text or "").strip()
+    if not t:
+        return True
+    tl = t.lower()
+    if tl.startswith(("http://", "https://", "www.")):
+        return True
+    # Bare domain — no spaces, and matches "word.tld[/path]".
+    if " " not in t and _BARE_URL_RE.match(t):
+        return True
+    return False
 
 
 def _resolve_link(raw: str) -> dict | None:
@@ -254,6 +272,47 @@ def _resolve_link(raw: str) -> dict | None:
     return {"sourceUrl": absolute, "hostedByCollege": True}
 
 
+def _finalize_links(links: list[dict]) -> list[dict]:
+    """
+    Post-process the raw link list before it's persisted:
+
+      - Drop exact duplicate destinations (same sourceUrl), keeping the
+        first occurrence — the same URL surfacing twice in a notice
+        body (e.g. both a "Registration link:" line and an
+        "Attachments & links" section pointing at the same form) should
+        render as ONE button, not two.
+      - Number same-label duplicates: several attachments that all
+        resolve to the label "JD" become "JD 1", "JD 2", "JD 3", ...
+        instead of several indistinguishable identical buttons. Labels
+        that are already unique are left untouched.
+
+    Order-preserving in both steps.
+    """
+    seen_urls: set[str] = set()
+    deduped: list[dict] = []
+    for link in links:
+        url = link.get("sourceUrl")
+        if url and url in seen_urls:
+            continue
+        if url:
+            seen_urls.add(url)
+        deduped.append(link)
+
+    counts: dict[str, int] = {}
+    for link in deduped:
+        counts[link["label"]] = counts.get(link["label"], 0) + 1
+
+    seen_n: dict[str, int] = {}
+    out: list[dict] = []
+    for link in deduped:
+        label = link["label"]
+        if counts[label] > 1:
+            seen_n[label] = seen_n.get(label, 0) + 1
+            link = {**link, "label": f"{label} {seen_n[label]}"}
+        out.append(link)
+    return out
+
+
 def _extract_links(entry: dict, details_html: str) -> list[dict]:
     """
     The college API stores each attachment as a PAIR:
@@ -272,7 +331,10 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
     NOTE: labels are NEVER allowed to be a raw URL. Every branch below
     (structured fields, and the <a href> fallback) runs through a
     label heuristic with a sane human-readable fallback ("Apply" /
-    "Link N"), never the href/URL text itself.
+    "Link N"), never the href/URL text itself. The final list is also
+    run through `_finalize_links` to drop duplicate destinations and
+    number repeated labels (e.g. several "JD" attachments -> "JD 1",
+    "JD 2", ...) before being returned.
     """
     links: list[dict] = []
 
@@ -303,7 +365,7 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
             links.append({"label": label, **resolved})
 
     if links:
-        return links
+        return _finalize_links(links)
 
     try:
         soup = BeautifulSoup(details_html or "", "html.parser")
@@ -335,7 +397,7 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
     except Exception:  # noqa: BLE001
         pass
 
-    return links
+    return _finalize_links(links)
 
 
 # --------------------------------------------------------------------- #

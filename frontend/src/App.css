@@ -1714,6 +1714,32 @@ body {
   margin: 0 0 0.75rem;
 }
 
+/* Radio row for "All branches" vs "Customise branches" — these two
+   options had no spacing rule at all before (only .pp-branch-picker
+   and .pp-branch-picker-grid existed), so the browser default of 0
+   gap on an inline layout left them butted up against each other. */
+.pp-picker-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.pp-picker-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--pp-ink-2);
+  cursor: pointer;
+}
+
+.pp-picker-mode-option input[type="radio"] {
+  accent-color: var(--pp-ink);
+  cursor: pointer;
+}
+
 .pp-branch-picker-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
