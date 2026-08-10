@@ -934,6 +934,8 @@ async def run_ingest(
         await db.notices.create_index("slno", unique=True)
         await db.notices.create_index([("date", -1), ("slno", -1)])
         await db.notices.create_index("isoWeek")
+        # `seen_slnos` has no index to add — Mongo's default _id index
+        # (we store slno itself as _id) already enforces uniqueness.
 
         entries = await fetch_college_api(college_api_url)
         run["fetched"] = len(entries)
@@ -941,8 +943,32 @@ async def run_ingest(
 
         inserted = updated = skipped = 0
         new_slnos: list[int] = []
-        new_docs: list[dict] = []
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        # `notices` is capped (Phase 8, below) — old entries get deleted
+        # once the collection exceeds NOTICE_CAP, even though the
+        # college API keeps re-listing them on every poll. If "is this
+        # new?" were judged purely by "not currently in `notices`",
+        # every capped-out-then-recycled-back entry would look new
+        # again on a later poll and re-trigger a push — which is
+        # exactly what was happening (a notification on effectively
+        # every scheduled tick, and near-permanent overflow past
+        # MAX_INDIVIDUAL_PUSHES_PER_RUN forcing the generic batch
+        # message instead of real company names).
+        #
+        # `seen_slnos` is a separate, NEVER-trimmed record of every
+        # slno ever encountered — used only to decide "is this
+        # genuinely new for notification purposes", independent of
+        # whatever `notices` currently holds for display/storage.
+        existing_notice_ids = {
+            d["slno"] for d in await db.notices.find({}, {"_id": 0, "slno": 1}).to_list(length=None)
+        }
+        ever_seen_ids = {
+            d["_id"] for d in await db.seen_slnos.find({}, {"_id": 1}).to_list(length=None)
+        }
+
+        newly_seen_this_run: set[int] = set()
+        new_docs_for_notify: list[dict] = []
 
         for raw in entries:
             doc = normalize_entry(raw, year)
@@ -951,10 +977,7 @@ async def run_ingest(
                 continue
 
             slno = doc["slno"]
-            existing = await db.notices.find_one(
-                {"slno": slno}, {"_id": 1}
-            )
-            if existing:
+            if slno in existing_notice_ids:
                 await db.notices.update_one(
                     {"slno": slno},
                     {"$set": {**doc, "updatedAt": now_iso}},
@@ -971,7 +994,23 @@ async def run_ingest(
                 )
                 inserted += 1
                 new_slnos.append(slno)
-                new_docs.append(doc)
+
+            if slno not in ever_seen_ids and slno not in newly_seen_this_run:
+                newly_seen_this_run.add(slno)
+                new_docs_for_notify.append(doc)
+
+        if newly_seen_this_run:
+            try:
+                await db.seen_slnos.insert_many(
+                    [{"_id": s} for s in newly_seen_this_run], ordered=False
+                )
+            except Exception:  # noqa: BLE001 — e.g. duplicate-key on a
+                # concurrent run; harmless, the point (recorded as
+                # seen) is already achieved by whichever run won.
+                logger.warning(
+                    "seen_slnos insert_many had partial failures (likely "
+                    "a concurrent ingest run) — non-fatal.",
+                )
 
         run.update(
             {
@@ -982,13 +1021,17 @@ async def run_ingest(
             }
         )
         logger.info(
-            "Ingest done: inserted=%d updated=%d skipped=%d new=%d",
-            inserted, updated, skipped, len(new_slnos),
+            "Ingest done: inserted=%d updated=%d skipped=%d new_in_notices=%d "
+            "genuinely_new_for_notify=%d",
+            inserted, updated, skipped, len(new_slnos), len(new_docs_for_notify),
         )
 
-        # Fan out FCM pushes for newly-inserted entries.
-        if notify and new_docs:
-            pub = await _publish_new_notices(new_docs, notify_topic)
+        # Fan out FCM pushes for GENUINELY new entries only (see
+        # new_docs_for_notify comment above) — not merely
+        # newly-(re)inserted-into-the-capped-collection entries.
+        notify_slnos = [d["slno"] for d in new_docs_for_notify]
+        if notify and new_docs_for_notify:
+            pub = await _publish_new_notices(new_docs_for_notify, notify_topic)
             run.update(
                 {
                     "published": pub["published"],
@@ -1002,13 +1045,13 @@ async def run_ingest(
             # In batched mode we mark all covered slnos as notified.
             if pub["batched"] and pub["published"]:
                 await db.notices.update_many(
-                    {"slno": {"$in": new_slnos}, "notifiedAt": None},
+                    {"slno": {"$in": notify_slnos}, "notifiedAt": None},
                     {"$set": {"notifiedAt": now_iso}},
                 )
             elif not pub["batched"]:
                 # Mark the first `published` slnos as notified. Since we
-                # iterate new_docs in order, this maps 1:1.
-                stamped_slnos = new_slnos[: pub["published"]]
+                # iterate new_docs_for_notify in order, this maps 1:1.
+                stamped_slnos = notify_slnos[: pub["published"]]
                 if stamped_slnos:
                     await db.notices.update_many(
                         {"slno": {"$in": stamped_slnos}},
