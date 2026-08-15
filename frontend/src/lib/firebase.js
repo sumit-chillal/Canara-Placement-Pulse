@@ -67,8 +67,42 @@ async function registerServiceWorker() {
   const existing = await navigator.serviceWorker.getRegistration(
     "/firebase-messaging-sw.js",
   );
-  if (existing) return existing;
-  return navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  const registration =
+    existing || (await navigator.serviceWorker.register("/firebase-messaging-sw.js"));
+
+  // `navigator.serviceWorker.ready` resolves once a service worker for
+  // this scope is genuinely ACTIVE — the real precondition a push
+  // subscribe needs, and the browser's own guaranteed signal for it.
+  // The previous approach here hand-rolled a wait on
+  // registration.installing/.waiting with a 4s fallback timeout that
+  // resolved regardless of actual state — iOS Safari activates a
+  // fresh service worker noticeably slower than Chrome/Android, so
+  // that timeout could fire before the worker was really active,
+  // letting getToken() run against a not-yet-active registration.
+  // That's exactly what surfaces on iOS as the native error
+  // "Subscribing for push requires an active service worker."
+  await navigator.serviceWorker.ready;
+  return registration;
+}
+
+// Apple's own Web Push provisioning backend is known to intermittently
+// fail on the very first subscribe attempt right after a service
+// worker activates ("Failed due to internal service error" on iOS),
+// then succeed a moment later on retry. One short, silent retry here
+// absorbs that without making the student tap the bell twice.
+async function getTokenWithRetry(messaging, options, attempts = 2) {
+  let lastErr;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await getToken(messaging, options);
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 export async function subscribeToPlacementUpdates(branches = []) {
@@ -97,21 +131,12 @@ export async function subscribeToPlacementUpdates(branches = []) {
       return { ok: false, error: `Notification permission: ${permission}` };
     }
 
+    // registerServiceWorker() now internally awaits SW readiness — see
+    // the comment there for why this matters specifically on iOS.
     const registration = await registerServiceWorker();
-    // Wait for the SW to be active so getToken can use it.
-    if (registration.installing || registration.waiting) {
-      await new Promise((resolve) => {
-        const worker = registration.installing || registration.waiting;
-        worker.addEventListener("statechange", () => {
-          if (worker.state === "activated") resolve();
-        });
-        // Safety timeout
-        setTimeout(resolve, 4000);
-      });
-    }
 
     const messaging = getMessaging(getFirebaseApp());
-    const token = await getToken(messaging, {
+    const token = await getTokenWithRetry(messaging, {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration,
     });
