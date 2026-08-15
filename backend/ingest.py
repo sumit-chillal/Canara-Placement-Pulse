@@ -31,10 +31,6 @@ from discord_notify import notify_discord
 IST = ZoneInfo("Asia/Kolkata")
 logger = logging.getLogger("placement-pulse.ingest")
 
-# Safety cap. If a single poll would fan out more than this many pushes
-# (e.g. first-boot backfill), collapse to a single summary message.
-MAX_INDIVIDUAL_PUSHES_PER_RUN = 5
-
 # Phase 8 · hard cap on total stored notices. Every ingest run trims the
 # collection back down to this many, deleting the oldest overflow first
 # (by date, slno as tiebreaker) — so Mongo storage never grows past a
@@ -657,43 +653,39 @@ def _target_for_notice(notice: dict, base_topic: str) -> tuple[str | None, str |
 
 async def _publish_new_notices(new_notices: list[dict], topic: str) -> dict:
     """
-    Publish per-notice pushes, with a safety cap. On overflow, collapses
-    to a single summary message so a first-boot backfill can't spam.
+    Publish one push per genuinely-new notice — every single one gets
+    its own individual notification with the real company name.
+
+    This used to collapse anything over MAX_INDIVIDUAL_PUSHES_PER_RUN
+    (5) new notices in one poll into a single generic "N new drives"
+    summary instead of real per-company pushes. That's been removed
+    per explicit product requirement: every new notice must be pushed
+    individually after every ingest cycle, with no batching exception
+    for bursts. This is safe now that notification eligibility is
+    tracked via the permanent `seen_slnos` record (see run_ingest) —
+    a burst of dozens of "new" entries from a cap-eviction recycle or
+    a stale first-run backfill can no longer happen, since those are
+    exactly what `seen_slnos` filters out before this function is ever
+    called. Anything reaching here is genuinely new and should reach
+    students as its own notification.
+
+    Returns `published_slnos` — the slnos that were confirmed
+    successfully published — so the caller can stamp `notifiedAt`
+    precisely on those, rather than assuming successes are a prefix
+    of the input list (which isn't guaranteed when individual
+    publishes can fail independently of each other).
     """
     if not new_notices:
         return {"published": 0, "failed": 0, "batched": False,
-                "message_ids": [], "errors": []}
+                "message_ids": [], "published_slnos": [], "errors": []}
 
     published = 0
     failed = 0
     message_ids: list[str] = []
+    published_slnos: list[int] = []
     errors: list[str] = []
-    to_publish = new_notices
-    batched = False
 
-    if len(new_notices) > MAX_INDIVIDUAL_PUSHES_PER_RUN:
-        batched = True
-        to_publish = []
-        try:
-            # The batch summary ("N new drives, open the app") isn't
-            # about any one notice, so there's nothing sensible to
-            # branch-target — it goes to everyone on the base topic,
-            # same as before.
-            mid = publish_to_topic(
-                topic,
-                title="New placement notices",
-                body=f"{len(new_notices)} new drives just posted. Open the app to see the list.",
-                data={"slno": new_notices[0]["slno"],
-                      "batch": "1", "count": len(new_notices),
-                      "deeplink": "/", "url": "/"},
-            )
-            message_ids.append(mid)
-            published = 1
-        except Exception as exc:  # noqa: BLE001
-            failed = 1
-            errors.append(f"batch: {type(exc).__name__}: {exc}")
-
-    for notice in to_publish:
+    for notice in new_notices:
         content = build_notification(notice)
         target_topic, target_condition = _target_for_notice(notice, topic)
         try:
@@ -711,6 +703,7 @@ async def _publish_new_notices(new_notices: list[dict], topic: str) -> dict:
             )
             message_ids.append(mid)
             published += 1
+            published_slnos.append(notice["slno"])
         except Exception as exc:  # noqa: BLE001
             failed += 1
             errors.append(f"slno={notice['slno']}: {type(exc).__name__}: {exc}")
@@ -718,8 +711,9 @@ async def _publish_new_notices(new_notices: list[dict], topic: str) -> dict:
     return {
         "published": published,
         "failed": failed,
-        "batched": batched,
+        "batched": False,
         "message_ids": message_ids,
+        "published_slnos": published_slnos,
         "errors": errors,
     }
 
@@ -1029,7 +1023,6 @@ async def run_ingest(
         # Fan out FCM pushes for GENUINELY new entries only (see
         # new_docs_for_notify comment above) — not merely
         # newly-(re)inserted-into-the-capped-collection entries.
-        notify_slnos = [d["slno"] for d in new_docs_for_notify]
         if notify and new_docs_for_notify:
             pub = await _publish_new_notices(new_docs_for_notify, notify_topic)
             run.update(
@@ -1041,22 +1034,16 @@ async def run_ingest(
                     "publish_errors": pub["errors"],
                 }
             )
-            # Stamp notifiedAt for the slice we successfully published.
-            # In batched mode we mark all covered slnos as notified.
-            if pub["batched"] and pub["published"]:
+            # Stamp notifiedAt on exactly the slnos that were
+            # confirmed published — not "the first N of the input
+            # list", since individual publishes can fail independently
+            # of each other and successes aren't guaranteed to be a
+            # contiguous prefix.
+            if pub["published_slnos"]:
                 await db.notices.update_many(
-                    {"slno": {"$in": notify_slnos}, "notifiedAt": None},
+                    {"slno": {"$in": pub["published_slnos"]}},
                     {"$set": {"notifiedAt": now_iso}},
                 )
-            elif not pub["batched"]:
-                # Mark the first `published` slnos as notified. Since we
-                # iterate new_docs_for_notify in order, this maps 1:1.
-                stamped_slnos = notify_slnos[: pub["published"]]
-                if stamped_slnos:
-                    await db.notices.update_many(
-                        {"slno": {"$in": stamped_slnos}},
-                        {"$set": {"notifiedAt": now_iso}},
-                    )
 
         # Phase 8 · trim back down to NOTICE_CAP every run, regardless of
         # whether this run inserted anything new — keeps storage bounded
