@@ -228,7 +228,185 @@ manual per-criterion audit of every installability rule.
   coverage, and standalone extractor unit tests.
 
 
-### Open follow-ups
-- `closingDate` sort is a proxy — revisit once we can extract a
-  real deadline from headline/details ("Register by <date>").
+### Open follow-ups (as of Phase 6)
+- ~~`closingDate` sort is a proxy — revisit once we can extract a
+  real deadline from headline/details ("Register by <date>").~~
+  **Still open as of Phase 9 — no change; not revisited.**
+- Declined the "weekly WhatsApp/Telegram digest" feature suggested as
+  a possible Phase 7 addition — Phase 7 kept strictly to the
+  originally planned deployment work (backend hosting + Firebase
+  Hosting frontend). Digest idea parked as post-launch backlog, still
+  unstarted as of Phase 9.
 
+
+## 2026-08 · Phase 7 (production deployment) — SHIPPED
+
+### Decision: EC2 + Docker, not AWS Lambda (for now)
+`backend/lambda_handler.py` (two entry points — `api_handler` via
+Mangum for API Gateway, `scheduled_ingest` for EventBridge Scheduler),
+`scripts/build-lambda-zip.sh`, and a Secrets Manager fallback in
+`firebase_client.py::_fetch_from_secrets_manager` were all written and
+are ready for a serverless deploy. **Not used** — deployed to the
+college-provided EC2 instance instead, since Lambda needs IAM role /
+Secrets Manager access that wasn't available at deploy time.
+Lambda migration remains a real option later; the code doesn't need
+to change to support it, only the deploy target.
+
+### What shipped
+- `Dockerfile.backend` (already existed as the documented EC2/container
+  fallback) is now what's actually running in production.
+- EC2 instance `i-00951fcff3cec57c0` ("cecplacement"), Ubuntu, region
+  `ap-south-1`. Docker + Nginx installed; container run with
+  `--restart unless-stopped` so it survives instance reboots.
+- **Elastic IP `3.7.18.84`** associated to the instance for a stable
+  address (previously the dynamic `ec2-*.compute.amazonaws.com`
+  public DNS, which changes on every stop/start and breaks any prior
+  cert/config pointing at it).
+- **HTTPS via `sslip.io` + Certbot**: Let's Encrypt refuses to certify
+  bare IPs or any `*.amazonaws.com` hostname, so `3-7-18-84.sslip.io`
+  (a free wildcard-DNS service resolving to the embedded IP) is used
+  purely to give the CA something it's willing to certify. Nginx
+  reverse-proxies `443 → 127.0.0.1:8001`; the container itself is
+  bound to localhost only (`-p 127.0.0.1:8001:8001`), not exposed
+  externally. Certbot auto-renewal already configured.
+- **Live URLs:** frontend `https://cec-placements23.web.app`
+  (Firebase Hosting), backend `https://3-7-18-84.sslip.io` (EC2).
+- Security group: only 22 (SSH), 80, 443 open; port 8001 removed
+  after confirming Nginx fronting worked.
+
+### Gotchas hit during this deploy (all now documented in `localsetup.md` §7)
+- **SSH key leak + rotation.** The EC2 `.pem`/`.ppk` key was pasted in
+  plaintext during troubleshooting and had to be treated as
+  compromised; college IT re-keyed the instance. `.ppk` (PuTTY format)
+  needed `puttygen ... -O private-openssh` conversion before OpenSSH
+  on macOS could use it.
+- **`docker run --env-file` does not strip quotes** the way
+  `python-dotenv` does — `MONGO_URL="mongodb+srv://..."` in `.env`
+  broke `pymongo`'s URI parser in production while working fine
+  locally. Fixed by stripping quotes from `.env` (`sed`) and adding an
+  explicit "no quotes" callout to setup docs.
+- **`nano path/that/doesnt/exist`** silently creates an empty file at
+  that path rather than erroring — caused a stray `~/backend/.env`
+  and `~/backend/secrets/firebase-admin.json` when run from the wrong
+  directory. No data was actually lost; the real files were untouched.
+- **Associating an Elastic IP releases the old dynamic public IP/DNS
+  immediately** — any existing SSH session or cert tied to the old
+  hostname stops working the moment the association completes; not a
+  fault, just an ordering thing to expect.
+- **Mixed content**: the frontend (HTTPS via Firebase Hosting) cannot
+  call an `http://` backend — this is what actually forced the
+  Nginx+Certbot setup rather than serving the container's plain HTTP
+  port directly.
+
+
+## 2026-08 · Phase 8 (post-launch bug fixes) — SHIPPED
+
+### Registration-link labeling bugs (`ingest.py::_extract_links`)
+- **Bare-domain URL leak**: a notice's registration link pasted as
+  plain text without `http(s)://` (e.g. `test.aaptor.com/forms/...`)
+  was rendering as a raw URL button instead of "Apply" — `_is_url_like`
+  only checked for `http://`/`https://`/`www.` prefixes. Fixed with a
+  `_BARE_URL_RE` fallback check.
+- **Mislabeled attachments**: the structured `upload{N}`/`{ord}_file`
+  path was re-deriving every label from keyword regex instead of using
+  the college portal's own human-written label — "Registered Students
+  List" contains the substring "regist", which false-matched the
+  `apply|register|...` pattern and rendered as "Apply". Fixed: the
+  portal's own `*_file` label is now used verbatim whenever present
+  and not itself URL-like; keyword heuristics are only a fallback for
+  when no real label exists.
+- **Duplicate identical labels**: multiple JD attachments on one
+  notice all resolved to the same label "JD", rendering as
+  indistinguishable buttons. New `_finalize_links()` post-processor
+  dedupes by destination URL and numbers repeated labels
+  (`JD 1`, `JD 2`, ...).
+
+### Notification recycling bug (the big one)
+- **Symptom**: a push notification (often the generic batched "N new
+  drives" message, rarely a real per-company one) firing on
+  effectively every 30-minute scheduled tick, not just when something
+  was genuinely new.
+- **Root cause**: `notices` is capped at `NOTICE_CAP = 100` and
+  trimmed every run (oldest evicted first), but the college API keeps
+  re-listing its full current-year notice list on every poll. "Is this
+  new?" was judged purely by "not currently present in `notices`" —
+  so any notice evicted by the cap and then re-listed by the college
+  on a later poll looked new again and re-triggered a push, even
+  though students had already seen and been notified about it days
+  earlier.
+- **Fix**: new `seen_slnos` Mongo collection (slno as `_id`, never
+  trimmed) records every slno ever encountered. Notification
+  eligibility is now decided against `seen_slnos`, completely
+  independent of what the capped `notices` collection currently
+  holds for display/storage. `notices` insert/update/cap-trim
+  behavior is unchanged.
+- **Migration note**: on first deploy of this fix, `seen_slnos` starts
+  empty, so a manual `POST /api/admin/ingest/run?notify=false` was run
+  immediately after restart to seed it silently before the next
+  scheduled (notify=true) tick — documented as a standing procedure in
+  `localsetup.md` §9.5 for any future change to this logic.
+
+### Removed the notification batching cap
+- `MAX_INDIVIDUAL_PUSHES_PER_RUN = 5` used to collapse any poll with
+  more than 5 genuinely-new notices into one generic "N new drives
+  posted" push instead of real per-company ones. **Removed entirely**
+  per explicit requirement — every genuinely new notice now always
+  gets its own individual push with the real company name, no
+  exceptions for bursts. Safe now that `seen_slnos` guarantees a false
+  burst (cap-eviction recycling, a stale backfill) can't reach this
+  code path in the first place — anything arriving here is real.
+- `_publish_new_notices()` now also returns `published_slnos` (exactly
+  which slnos were confirmed published) so `notifiedAt` is stamped
+  precisely, rather than assuming successes are a contiguous prefix of
+  the input list.
+
+### iOS Safari push-subscribe race condition (`frontend/src/lib/firebase.js`)
+- **Symptom**: subscribing to notifications on iPhone (iOS 18.7,
+  Safari/standalone PWA) intermittently failed with two different
+  native errors across attempts — "Subscribing for push requires an
+  active service worker" and "Failed due to internal service error".
+- **Root cause**: `registerServiceWorker()` waited for SW activation
+  via a hand-rolled `installing`/`waiting` state-change listener with
+  a 4-second fallback timeout that resolved regardless of actual
+  state. iOS activates a fresh service worker noticeably slower than
+  Chrome/Android, so the timeout could fire before the worker was
+  genuinely active, and `getToken()` would then run against a
+  not-yet-active registration — exactly what iOS's native
+  `PushManager` reports as "requires an active service worker". The
+  second error is a known-flaky Apple Web Push provisioning failure
+  that typically clears on retry.
+- **Fix**: `registerServiceWorker()` now awaits
+  `navigator.serviceWorker.ready` (the browser's own guaranteed
+  "genuinely active" signal) instead of the hand-rolled timeout. A new
+  `getTokenWithRetry()` wrapper gives one silent retry (1.2s apart) on
+  `getToken()` to absorb Apple's known transient failures.
+
+### Test credentials / verification notes
+- Notification-recycling fix verified via
+  `GET /api/admin/ingest/runs?limit=5` on production showing
+  `published: 0, publish_batched: false, publish_failed: 0` across
+  five consecutive polls where the same ~161 slnos were
+  inserted/cap-evicted every cycle with zero re-notifications.
+
+
+## 2026-08 · Phase 9 (crawler policy & link previews) — SHIPPED
+
+### Decision: actively block search indexing, don't optimize for it
+This app has no organic-search audience (students reach it via direct
+link or install prompt) and some notice attachments (registration
+lists, shortlists) could contain student-identifying information that
+must never become publicly searchable. Google Search Console, a
+sitemap, and Bing Webmaster Tools were **deliberately not set up** —
+none of them make sense for a site being kept out of search indexes.
+
+### What shipped
+- `frontend/public/robots.txt` — `Disallow: /` (note: an *empty*
+  `Disallow:` value blocks nothing at all — the opposite of intended
+  — this was caught and corrected before deploy).
+- `frontend/public/index.html` — `<meta name="robots" content="noindex, nofollow">`
+  as defense-in-depth alongside `robots.txt`.
+- Open Graph tags (`og:title`, `og:description`, `og:image`,
+  `og:url`, `og:type`) added to `index.html` — unrelated to search
+  engines; these control link-preview appearance when a notice or the
+  app is shared in WhatsApp/Telegram groups, which is an expected
+  real use case here.

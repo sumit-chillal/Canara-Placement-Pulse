@@ -29,9 +29,6 @@ textarea {
 
 body {
   margin: 0;
-  /* Safety net: no single element (a long dropdown option, an unbroken
-     URL, etc.) should ever be able to widen the whole page and push
-     content off-screen to the right. */
   overflow-x: hidden;
   background: var(--pp-paper);
   color: var(--pp-ink);
@@ -55,22 +52,12 @@ body {
 }
 
 .pp-container {
-  /* Fluid width: grows continuously with the viewport (via 90vw) between
-     a 720px floor and a 1200px ceiling, instead of jumping between fixed
-     breakpoints. On phones the floor never actually applies (a block
-     element can't exceed its parent's available width), so mobile is
-     unaffected — this only changes tablet/desktop, where it now uses
-     the screen instead of sitting in a narrow fixed column. */
   max-width: clamp(720px, 90vw, 1200px);
   width: 100%;
   margin: 0 auto;
 }
 
 .pp-container-detail {
-  /* Detail/reading page stays narrower than the dashboard width above —
-     long-form text is more readable in a tighter column even on big
-     screens — but still scales fluidly rather than jumping at a
-     breakpoint. */
   max-width: clamp(760px, 85vw, 980px);
   width: 100%;
   margin: 0 auto;
@@ -345,10 +332,6 @@ body {
 }
 
 .pp-week-body {
-  /* auto-fill lets the browser fit as many ~260px-minimum columns as
-     the available width allows, growing/shrinking continuously as the
-     window resizes instead of snapping between 1/2/3 columns at fixed
-     breakpoints — genuinely fluid rather than stepped. */
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 1rem;
@@ -366,6 +349,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  min-width: 0;
   transition:
     transform 0.22s ease,
     box-shadow 0.22s ease,
@@ -376,8 +360,6 @@ body {
   transform: translateY(-4px) scale(1.035);
   box-shadow: 0 20px 45px -20px rgba(20, 20, 15, 0.45);
   border-color: #c9c4b1;
-  /* Lift above neighboring cards so the enlarged card isn't clipped
-     under the next row when it grows past its own grid cell. */
   z-index: 5;
 }
 
@@ -474,6 +456,7 @@ body {
   flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
+  min-width: 0;
 }
 
 .pp-btn-sm {
@@ -501,6 +484,31 @@ body {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+   Registration-link buttons use single-line ellipsis truncation
+   rather than wrapping. Wrapping (the previous approach here) did
+   stop long labels — a bare filename like
+   "Quality_Austria_2027_Hiring_Poster_High_Resolution", or
+   "Codeyoung_Full_Stack_Developer_JD (4)" — from overflowing past
+   the card's edge, but multi-line pills still looked cluttered and
+   inconsistent next to short ones like "JD" or "Apply". Truncating
+   to one line keeps every pill the same visual height regardless of
+   label length; the full label is still available via the `title`
+   attribute (EntryCard.jsx) on hover/long-press, and always in full
+   on the notice's own detail page.
+*/
+.pp-card-actions .pp-btn,
+.pp-btn-group .pp-btn {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 
 /* --- Better detail-page HTML rendering -------------------------- */
@@ -916,10 +924,6 @@ body {
 }
 
 .pp-filter-row {
-  /* auto-fit: search + 3 dropdowns each claim a minimum of 200px and
-     share whatever space is left, wrapping onto as many rows as needed
-     — one control per row on a phone, all four side by side once
-     there's room, with no hard breakpoint in between. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.55rem;
@@ -1639,8 +1643,6 @@ body {
   background: #2a2a24;
 }
 
-/* Sits above the bell's confirmation toast, which also anchors
-   bottom-right, so the two never overlap if both are visible at once. */
 .pp-bell-confirm-toast {
   bottom: 5.25rem;
 }
@@ -1714,10 +1716,6 @@ body {
   margin: 0 0 0.75rem;
 }
 
-/* Radio row for "All branches" vs "Customise branches" — these two
-   options had no spacing rule at all before (only .pp-branch-picker
-   and .pp-branch-picker-grid existed), so the browser default of 0
-   gap on an inline layout left them butted up against each other. */
 .pp-picker-mode-row {
   display: flex;
   align-items: center;

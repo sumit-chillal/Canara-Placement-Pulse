@@ -5,6 +5,19 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#14140f" />
         <meta name="description" content="Placement Pulse — campus placement & internship drives, delivered the moment they drop." />
+        <!-- Belt-and-suspenders alongside robots.txt: robots.txt stops
+             crawling, this stops indexing even if a page is somehow
+             reached directly. Notice attachments (registration lists,
+             shortlists) should never end up searchable. -->
+        <meta name="robots" content="noindex, nofollow" />
+        <!-- Open Graph — controls the link preview when a notice or the
+             app itself is shared in WhatsApp/Telegram groups. Unrelated
+             to search engines; read by messaging-app link crawlers. -->
+        <meta property="og:title" content="Placement Pulse — Canara Engineering College" />
+        <meta property="og:description" content="Placement Pulse — campus placement & internship drives, delivered the moment they drop." />
+        <meta property="og:image" content="%PUBLIC_URL%/hero-college.jpg" />
+        <meta property="og:url" content="https://cec-placements23.web.app" />
+        <meta property="og:type" content="website" />
         <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
         <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />

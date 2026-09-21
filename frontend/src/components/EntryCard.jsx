@@ -228,6 +228,7 @@ export default function EntryCard({ entry, isUnread, isBookmarked, onToggleBookm
             target="_blank"
             rel="noopener noreferrer"
             className="pp-btn pp-btn-solid pp-btn-sm"
+            title={registrationLinks[0].label?.trim() || "Register Now"}
             data-testid={`card-btn-single-${slno}`}
           >
             {registrationLinks[0].label?.trim() || "Register Now"}
@@ -245,6 +246,7 @@ export default function EntryCard({ entry, isUnread, isBookmarked, onToggleBookm
                 target="_blank"
                 rel="noopener noreferrer"
                 className="pp-btn pp-btn-ghost pp-btn-sm"
+                title={l.label?.trim() || `Link ${i + 1}`}
                 data-testid={`card-btn-${slno}-${i}`}
               >
                 {l.label?.trim() || `Link ${i + 1}`}

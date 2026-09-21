@@ -189,21 +189,48 @@ def _label_for_file(url: str, fallback: str) -> str:
     return fallback
 
 
-def _is_email_link(href: str, text: str) -> bool:
+# Text that IS, by itself, a bare phone number: digits with optional
+# +, spaces, hyphens, dots, parens — e.g. "8217612080", "+91 8217612080".
+# Deliberately requires the WHOLE string to look like a phone number
+# (not just "contains digits") so this never accidentally swallows a
+# real label like "JD-2027" or "Round 2 Results".
+_PHONE_ONLY_RE = re.compile(r"^[+()\-.\s\d]{7,20}$")
+
+
+def _is_personal_contact_text(text: str) -> bool:
     """
-    True for mailto: links and for anchors whose visible text is itself
-    an email address — these are almost always a candidate's personal
-    contact info embedded in a shortlist table, never a real
-    apply/registration link. They're excluded entirely (not just
+    True when `text`, by itself, IS a bare email address or phone
+    number — e.g. a "Selected Students" results notice that lists
+    each student's phone number as the visible text of their own
+    entry. Used both for anchor text (see _is_personal_contact_link)
+    and for the college portal's own *_file label field, since either
+    could carry this without an obviously personal-looking href.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    if "@" in t:
+        return True
+    digits = re.sub(r"\D", "", t)
+    return bool(_PHONE_ONLY_RE.match(t) and 7 <= len(digits) <= 15)
+
+
+def _is_personal_contact_link(href: str, text: str) -> bool:
+    """
+    True for mailto:/tel: links, or anchors whose visible text is
+    itself an email address or a bare phone number — these are
+    virtually always a candidate's or student's personal contact info
+    embedded in a results/shortlist table (e.g. a list of selected
+    students' phone numbers, each individually hyperlinked), never a
+    real apply/registration destination. Excluded entirely (not just
     relabeled) both to keep cards clean and because publishing a
-    student's personal email as a clickable button is a real privacy
-    concern, not just a cosmetic one.
+    student's personal phone number or email as a clickable button is
+    a real privacy concern, not just a cosmetic one.
     """
-    if href.strip().lower().startswith("mailto:"):
+    h = href.strip().lower()
+    if h.startswith("mailto:") or h.startswith("tel:"):
         return True
-    if "@" in (text or ""):
-        return True
-    return False
+    return _is_personal_contact_text(text)
 
 
 # Bare domain/path text with NO protocol at all, e.g.
@@ -364,7 +391,7 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
         # heuristic and render as "Apply" — that's exactly the bug this
         # avoids. Only fall back to keyword heuristics when there's no
         # usable human label at all (missing, or itself URL-like).
-        if f_ok and not _is_url_like(f):
+        if f_ok and not _is_url_like(f) and not _is_personal_contact_text(f):
             label = f
         else:
             candidate = f if f_ok else u
@@ -380,7 +407,7 @@ def _extract_links(entry: dict, details_html: str) -> list[dict]:
         soup = BeautifulSoup(details_html or "", "html.parser")
         anchors = [
             a for a in soup.find_all("a", href=True)
-            if a["href"].strip() and not _is_email_link(a["href"].strip(), a.get_text() or "")
+            if a["href"].strip() and not _is_personal_contact_link(a["href"].strip(), a.get_text() or "")
         ]
         for a in anchors:
             href = a["href"].strip()
