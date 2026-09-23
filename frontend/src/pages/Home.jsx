@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import {
@@ -37,6 +37,15 @@ import CurrentWeekChip, {
 } from "@/components/CurrentWeekChip";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Scroll-position memory: `EntryDetail.jsx`'s "Back" link is a plain
+// <Link to="/">, which fully remounts Home from scratch — there's no
+// router-level scroll restoration anywhere in this stack (that's a
+// data-router feature this app doesn't use). sessionStorage is what
+// bridges that remount: it survives the unmount/remount cycle within
+// the same tab, but clears on tab close, so a genuinely fresh visit
+// still starts at the top exactly as expected.
+const SCROLL_KEY = "pp-home-scroll-y";
 
 // Load ALL entries in pages (used only when no server filter active).
 async function fetchAllEntries() {
@@ -140,6 +149,55 @@ export default function Home() {
     subscribing: false,
     token: null,
   });
+
+  // ---- scroll position: save continuously, restore once per visit ---
+  const hasRestoredScroll = useRef(false);
+
+  useEffect(() => {
+    let raf = null;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        try {
+          sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+        } catch (_) {
+          /* private-mode / quota — scroll memory just won't persist */
+        }
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasRestoredScroll.current) return;
+    if (entries === null) return; // still on the skeleton — nothing to land the scroll on yet
+    hasRestoredScroll.current = true;
+
+    let saved = null;
+    try {
+      saved = sessionStorage.getItem(SCROLL_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+    if (!saved) return;
+    const y = parseInt(saved, 10);
+    if (!Number.isFinite(y) || y <= 0) return;
+
+    // Double rAF: the real card list needs to exist at its full
+    // rendered height before scrollTo can land in the right place —
+    // one frame for this render to commit, a second so layout/paint
+    // has actually settled before we measure against it.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, y);
+      });
+    });
+  }, [entries]);
 
   // ---- bookmarks: load once on mount ---------------------------------
   useEffect(() => {

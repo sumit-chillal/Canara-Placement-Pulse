@@ -907,6 +907,90 @@ async def fetch_college_api(
     raise last_exc
 
 
+async def _prune_deleted_from_source(
+    db: AsyncIOMotorDatabase,
+    source_valid_slnos: set,
+    fetched_count: int,
+    *,
+    min_fetched_for_safety: int = 1000,
+) -> dict:
+    """
+    Remove notices that no longer appear in the college's own feed at
+    all — e.g. the college deletes a notice and reposts a corrected
+    version under a new slno (this is exactly what happened with the
+    "BLACKFROG on Campus Drive" duplicate: #10943 was deleted upstream
+    and replaced by #10945, but the app kept #10943 forever since
+    nothing had ever told it to remove anything).
+
+    Deliberately conservative, since a false positive here means
+    silently deleting a notice a student might still need:
+
+      1. A slno must be absent across TWO CONSECUTIVE ingest runs
+         before it's actually deleted — tracked via a `missingSince`
+         timestamp on the notice doc. A single missed/glitchy poll
+         response can't delete anything on its own; if the slno
+         reappears on the very next poll, its "missing" mark is
+         cleared and nothing is removed.
+      2. Skipped ENTIRELY (a safe no-op) if this run's raw fetch count
+         looks anomalously small to trust as a complete listing — a
+         badly truncated or partial response from the college API must
+         never be treated as "everything else was deleted."
+    """
+    if fetched_count < min_fetched_for_safety:
+        logger.warning(
+            "Skipping stale-notice pruning this run: fetched=%d is "
+            "below the safety floor (%d) for trusting this as a "
+            "complete source listing.",
+            fetched_count, min_fetched_for_safety,
+        )
+        return {"pruned": 0, "marked_missing": 0, "recovered": 0}
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    current_docs = await db.notices.find(
+        {}, {"_id": 0, "slno": 1, "missingSince": 1}
+    ).to_list(length=None)
+
+    to_delete: list[int] = []
+    to_mark_missing: list[int] = []
+    to_clear: list[int] = []
+
+    for d in current_docs:
+        slno = d["slno"]
+        still_present = slno in source_valid_slnos
+        was_missing = bool(d.get("missingSince"))
+        if still_present:
+            if was_missing:
+                to_clear.append(slno)
+        elif was_missing:
+            to_delete.append(slno)
+        else:
+            to_mark_missing.append(slno)
+
+    if to_mark_missing:
+        await db.notices.update_many(
+            {"slno": {"$in": to_mark_missing}},
+            {"$set": {"missingSince": now_iso}},
+        )
+    if to_clear:
+        await db.notices.update_many(
+            {"slno": {"$in": to_clear}},
+            {"$set": {"missingSince": None}},
+        )
+    if to_delete:
+        await db.notices.delete_many({"slno": {"$in": to_delete}})
+        logger.info(
+            "Pruned %d notice(s) confirmed removed from the source "
+            "feed across two consecutive polls: %s",
+            len(to_delete), to_delete,
+        )
+
+    return {
+        "pruned": len(to_delete),
+        "marked_missing": len(to_mark_missing),
+        "recovered": len(to_clear),
+    }
+
+
 # --------------------------------------------------------------------- #
 #  Main entry point
 # --------------------------------------------------------------------- #
@@ -946,6 +1030,8 @@ async def run_ingest(
         "publish_message_ids": [],
         "publish_errors": [],
         "capped_deleted": 0,
+        "pruned_deleted_from_source": 0,
+        "marked_missing_from_source": 0,
         "error": None,
         "finished_at": None,
     }
@@ -990,6 +1076,7 @@ async def run_ingest(
 
         newly_seen_this_run: set[int] = set()
         new_docs_for_notify: list[dict] = []
+        source_valid_slnos_this_run: set[int] = set()
 
         for raw in entries:
             doc = normalize_entry(raw, year)
@@ -998,6 +1085,7 @@ async def run_ingest(
                 continue
 
             slno = doc["slno"]
+            source_valid_slnos_this_run.add(slno)
             if slno in existing_notice_ids:
                 await db.notices.update_one(
                     {"slno": slno},
@@ -1071,6 +1159,20 @@ async def run_ingest(
                     {"slno": {"$in": pub["published_slnos"]}},
                     {"$set": {"notifiedAt": now_iso}},
                 )
+
+        # Remove notices genuinely deleted upstream (confirmed absent
+        # across two consecutive polls — see _prune_deleted_from_source
+        # for why this needs to be conservative). Runs BEFORE the cap
+        # trim below: these are two distinct concerns — this one is
+        # "the source no longer has this notice at all", the cap trim
+        # is "keep storage bounded regardless of source state" — and
+        # source-deletion pruning should take priority when both would
+        # otherwise remove the same notice.
+        prune = await _prune_deleted_from_source(
+            db, source_valid_slnos_this_run, run["fetched"],
+        )
+        run["pruned_deleted_from_source"] = prune["pruned"]
+        run["marked_missing_from_source"] = prune["marked_missing"]
 
         # Phase 8 · trim back down to NOTICE_CAP every run, regardless of
         # whether this run inserted anything new — keeps storage bounded
