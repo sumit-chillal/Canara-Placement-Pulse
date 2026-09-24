@@ -7,6 +7,20 @@ function weekLabel(isoWeek) {
   return `Week ${parseInt(w, 10)} · ${year}`;
 }
 
+// Same sessionStorage persistence pattern as MonthSection.jsx — see
+// that file's comment for why this is needed alongside the scroll-
+// position restore in Home.jsx, not instead of it.
+function readStoredOpen(key, fallback) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+  } catch (_) {
+    /* ignore */
+  }
+  return fallback;
+}
+
 export default function WeekSection({
   isoWeek,
   entries,
@@ -15,10 +29,28 @@ export default function WeekSection({
   currentWeek = null,
   weekViewedAt = null,
 }) {
-  // Auto-open the current week so students see the freshest notices
-  // without one more tap.
-  const [open, setOpen] = useState(defaultOpen || isoWeek === currentWeek);
   const testId = isoWeek || "undated";
+  const storageKey = `pp-week-open-${testId}`;
+
+  // Auto-open the current week so students see the freshest notices
+  // without one more tap — but only as the fallback when there's no
+  // stored preference yet; an explicit prior open/close by the user
+  // always wins on return.
+  const [open, setOpenState] = useState(() =>
+    readStoredOpen(storageKey, defaultOpen || isoWeek === currentWeek),
+  );
+  const setOpen = (updater) => {
+    setOpenState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try {
+        sessionStorage.setItem(storageKey, next ? "1" : "0");
+      } catch (_) {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const isCurrent = isoWeek === currentWeek;
   const cutoff = weekViewedAt ? new Date(weekViewedAt).getTime() : null;
   return (
